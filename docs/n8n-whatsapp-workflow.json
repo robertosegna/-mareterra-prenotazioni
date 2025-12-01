@@ -1,0 +1,123 @@
+{
+  "name": "WhatsApp Auto Reply",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp/inbound",
+        "responseMode": "onReceived",
+        "options": {
+          "responseBody": "OK",
+          "responseHeaders": {
+            "entries": []
+          }
+        }
+      },
+      "id": "Webhook_Trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "webhookId": "whatsapp-inbound"
+    },
+    {
+      "parameters": {
+        "functionCode": "const entry = $json.entry?.[0];\nconst change = entry?.changes?.[0];\nconst message = change?.value?.messages?.[0];\n\nif (!message) {\n  return [];\n}\n\nreturn [{\n  from: message.from,\n  text: message.text?.body ?? '',\n  name: change?.value?.contacts?.[0]?.profile?.name ?? message.from\n}];"
+      },
+      "id": "Function_Parse",
+      "name": "Parse Message",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://graph.facebook.com/v18.0/{{$env.WHATSAPP_PHONE_ID}}/messages",
+        "jsonParameters": true,
+        "options": {
+          "headers": {
+            "entries": [
+              {
+                "name": "Authorization",
+                "value": "Bearer {{$env.WHATSAPP_TOKEN}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        "bodyJson": {
+          "messaging_product": "whatsapp",
+          "to": "={{$json.from}}",
+          "type": "text",
+          "text": {
+            "body": "=Ciao {{$json.name}}! Ho ricevuto: ‘{{$json.text}}’. Risponderemo presto."
+          }
+        }
+      },
+      "id": "HTTP_Send",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "Respond_Node",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Message": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reply": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "whatsapp-auto-reply-1",
+  "meta": {
+    "template": {
+      "name": "WhatsApp Auto Reply"
+    }
+  }
+}
